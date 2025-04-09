@@ -1,0 +1,240 @@
+:root {
+    --primary-color: #4285f4;
+    --secondary-color: #34a853;
+    --accent-color: #ea4335;
+    --background-color: #ffffff;
+    --text-color: #202124;
+    --border-color: #dadce0;
+    --light-gray: #f8f9fa;
+  }
+  
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+  
+  body {
+    font-family: 'Roboto', Arial, sans-serif;
+    background-color: var(--background-color);
+    color: var(--text-color);
+  }
+  
+  .container {
+    width: 350px;
+    padding: 16px;
+    position: relative;
+  }
+  
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+  
+  h1 {
+    font-size: 20px;
+    color: var(--primary-color);
+    margin: 0;
+  }
+  
+  h2 {
+    font-size: 18px;
+    margin-bottom: 12px;
+    color: var(--primary-color);
+  }
+  
+  .task-input p, 
+  .task-progress p {
+    margin-bottom: 10px;
+    font-size: 14px;
+  }
+  
+  #task-prompt {
+    width: 100%;
+    height: 80px;
+    padding: 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    resize: none;
+    margin-bottom: 12px;
+    font-family: inherit;
+  }
+  
+  button {
+    cursor: pointer;
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    font-weight: 500;
+    transition: background-color 0.2s;
+  }
+  
+  .icon-button {
+    background: none;
+    border: none;
+    padding: 4px;
+    cursor: pointer;
+    font-size: 16px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+  }
+  
+  .icon-button:hover {
+    background-color: var(--light-gray);
+  }
+  
+  #start-task-btn, 
+  .primary-btn,
+  #new-task-btn {
+    background-color: var(--primary-color);
+    color: white;
+    width: 100%;
+  }
+  
+  #start-task-btn:hover,
+  .primary-btn:hover,
+  #new-task-btn:hover {
+    background-color: #3367d6;
+  }
+  
+  .secondary-btn {
+    background-color: transparent;
+    color: var(--primary-color);
+    border: 1px solid var(--primary-color);
+  }
+  
+  .secondary-btn:hover {
+    background-color: rgba(66, 133, 244, 0.04);
+  }
+  
+  .buttons {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+  }
+  
+  .status {
+    display: flex;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  
+  .status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 8px;
+    background-color: var(--secondary-color);
+    animation: pulse 1.5s infinite;
+  }
+  
+  @keyframes pulse {
+    0% {
+      transform: scale(0.95);
+      opacity: 0.7;
+    }
+    50% {
+      transform: scale(1.05);
+      opacity: 1;
+    }
+    100% {
+      transform: scale(0.95);
+        opacity: 0.7;
+    }
+}
+
+#current-step {
+    background-color: #f8f9fa;
+    border-radius: 4px;
+    padding: 12px;
+    margin: 12px 0;
+    font-size: 14px;
+    line-height: 1.5;
+    max-height: 150px;
+    overflow-y: auto;
+}
+
+.hidden {
+    display: none;
+}
+
+.task-complete {
+    text-align: center;
+}
+
+.task-complete h2 {
+    margin-bottom: 12px;
+    color: var(--secondary-color);
+}
+
+.task-complete p {
+    margin-bottom: 16px;
+}
+
+/* Settings Panel */
+.settings-panel {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: var(--background-color);
+    padding: 16px;
+    z-index: 10;
+}
+
+.settings-group {
+    margin-bottom: 16px;
+}
+
+.settings-group label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 500;
+    font-size: 14px;
+}
+
+.api-key-input {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.api-key-input input {
+    flex: 1;
+    padding: 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.help-text {
+    font-size: 12px;
+    color: #5f6368;
+    margin-top: 4px;
+}
+
+.help-text a {
+    color: var(--primary-color);
+    text-decoration: none;
+}
+
+.help-text a:hover {
+    text-decoration: underline;
+}
+
+.settings-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 24px;
+}
+
+.settings-actions button {
+    flex: 1;
+}

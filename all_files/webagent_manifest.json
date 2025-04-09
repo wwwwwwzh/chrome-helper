@@ -1,0 +1,45 @@
+{
+    "manifest_version": 3,
+    "name": "Task Teacher",
+    "description": "Learn how to complete tasks step by step with AI guidance",
+    "version": "1.0",
+    "permissions": [
+      "activeTab",
+      "scripting",
+      "storage",
+      "webNavigation"
+    ],
+    "host_permissions": [
+      "https://api.deepseek.com/*",
+      "https://*.google.com/*"
+    ],
+    "background": {
+      "service_worker": "background.js"
+    },
+    "action": {
+      "default_popup": "popup/popup.html",
+      "default_icon": {
+        "16": "assets/icon-16.png",
+        "48": "assets/icon-48.png",
+        "128": "assets/icon-128.png"
+      }
+    },
+    "content_scripts": [
+      {
+        "matches": ["<all_urls>"],
+        "js": ["content/content.js"],
+        "css": ["assets/styles.css"]
+      }
+    ],
+    "web_accessible_resources": [
+      {
+        "resources": ["content/highlighter.js", "content/dom-parser.js", "content/ui-controller.js"],
+        "matches": ["<all_urls>"]
+      }
+    ],
+    "icons": {
+      "16": "assets/icon-16.png",
+      "48": "assets/icon-48.png",
+      "128": "assets/icon-128.png"
+    }
+  }
