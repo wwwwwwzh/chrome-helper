@@ -4,9 +4,7 @@
  */
 
 (function() {
-  // Create namespace if it doesn't exist
-  if (window.taskTeacherHighlighter) return;
-  
+  // Create namespace
   window.taskTeacherHighlighter = {};
   
   // Constants
@@ -118,8 +116,6 @@
   
   // Display instruction tooltip
   function showInstruction(instruction) {
-    if (!instruction) return null;
-    
     const container = getHighlightContainer();
     
     // Remove existing instruction if any
@@ -167,12 +163,12 @@
     label.className = 'task-teacher-highlight-label';
     label.textContent = index;
     
-    // Position label - using improved positioning logic
-    positionLabel(label, rect);
+    // Position label
+    // positionLabel(label, rect);
     
     // Add to container
     container.appendChild(overlay);
-    container.appendChild(label);
+    // container.appendChild(label);
     
     // Show instruction if provided
     let instructionEl = null;
@@ -187,7 +183,7 @@
     const updatePositions = () => {
       const newRect = element.getBoundingClientRect();
       positionOverlay(overlay, newRect);
-      positionLabel(label, newRect);
+      // positionLabel(label, newRect);
     };
     
     window.addEventListener('scroll', updatePositions, { passive: true });
@@ -212,13 +208,13 @@
     overlay.style.height = `${rect.height}px`;
   }
   
-  // Position the label element with improved positioning logic
+  // Position the label element
   function positionLabel(label, rect) {
     const labelWidth = 28;
     const labelHeight = 24;
     
     // Default position (top-right corner)
-    let labelTop = rect.top + rect.height - labelHeight - 5;
+    let labelTop = rect.top + labelHeight - 5;
     let labelLeft = rect.left + rect.width - labelWidth - 5;
     
     // Adjust if element is too close to top
@@ -231,15 +227,11 @@
       labelLeft = rect.left;
     }
     
-    // Make sure label is visible in viewport
-    labelLeft = Math.max(5, Math.min(window.innerWidth - labelWidth - 5, labelLeft));
-    labelTop = Math.max(5, Math.min(window.innerHeight - labelHeight - 5, labelTop));
-    
     label.style.top = `${labelTop}px`;
     label.style.left = `${labelLeft}px`;
   }
   
-  // Clear all highlights
+  // Clear all highlights - Explicitly defined here
   function clearHighlights() {
     const container = document.getElementById(HIGHLIGHT_CONTAINER_ID);
     if (container) {
@@ -253,15 +245,15 @@
     
     // Clear cleanup function
     if (currentCleanupFunction) {
-      currentCleanupFunction();
       currentCleanupFunction = null;
     }
     
     return true;
   }
   
-  // Highlight element by index - main public method
+  // Highlight element by index
   window.taskTeacherHighlighter.highlightElement = function(elementIdentifier, instruction) {
+    console.log("taskTeacherHighlighter.highlightElement:"+elementIdentifier)
     try {
       // Clear existing highlights
       clearHighlights();
@@ -269,23 +261,20 @@
       // Initialize styles
       initializeStyles();
       
-      // Parse index from [X] format or direct number
-      let index;
-      if (typeof elementIdentifier === 'number') {
-        index = elementIdentifier;
-      } else {
-        const indexMatch = elementIdentifier.match(/\[(\d+)\]/);
-        if (!indexMatch) {
-          console.error('Invalid element identifier format:', elementIdentifier);
-          return false;
-        }
-        index = parseInt(indexMatch[1]);
+      // Parse index from [X] format
+      const indexMatch = elementIdentifier.match(/\[(\d+)\]/);
+      if (!indexMatch) {
+        console.error('Invalid element identifier format:', elementIdentifier);
+        return false;
       }
+      
+      const index = parseInt(indexMatch[1]);
       
       // Get element from DOM parser registry
       let element = null;
       if (window.taskTeacherDOMParser) {
         element = window.taskTeacherDOMParser.getElementByIndex(index);
+        console.log(element)
       }
       
       // If element is not found, try refreshing the DOM parser
@@ -300,21 +289,6 @@
         const fallbackElement = document.querySelector(`[data-highlight-index="${index}"]`);
         if (fallbackElement) {
           element = fallbackElement;
-        }
-      }
-      
-      // If still no element, try using selector with attributes
-      if (!element) {
-        // Fallback to find by index in visible elements
-        const selectors = [
-          'a', 'button', 'input[type="button"]', 'input[type="submit"]',
-          '[role="button"]', '[onclick]', '.btn', '.button'
-        ];
-        const visibleElements = Array.from(document.querySelectorAll(selectors.join(',')))
-          .filter(el => TaskTeacherUtils.dom.isElementVisible(el));
-        
-        if (index >= 0 && index < visibleElements.length) {
-          element = visibleElements[index];
         }
       }
       

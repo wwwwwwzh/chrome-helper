@@ -28,7 +28,6 @@
       {
         "matches": ["<all_urls>"],
         "js": [
-          "content/utils.js",
           "content/dom-parser.js",
           "content/highlighter.js",
           "content/ui-controller.js",

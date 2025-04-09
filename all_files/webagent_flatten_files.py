@@ -3,7 +3,7 @@ import os
 import shutil
 import argparse
 
-BLACK_LIST = "venv,lib,bin,.github,.vscode,docs,eval,examples,tests,.git,.env,all_files,assets,.DS_Store,.__pychache__"
+BLACK_LIST = "venv,lib,bin,.github,.vscode,docs,eval,examples,tests,.git,.env,all_files,assets"
 
 def should_skip_directory(path, blacklist):
     """

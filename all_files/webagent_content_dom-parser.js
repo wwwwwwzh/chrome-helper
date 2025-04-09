@@ -4,9 +4,6 @@
  */
 
 (function() {
-  // Initialize if not already done
-  if (window.taskTeacherDOMParser) return;
-  
   // Create namespace
   window.taskTeacherDOMParser = {};
   
@@ -19,10 +16,10 @@
     constructor(element) {
       this.element = element; // Store reference to actual DOM element
       this.tagName = element.tagName.toLowerCase();
-      this.attributes = TaskTeacherUtils.dom.getElementAttributes(element);
-      this.isVisible = TaskTeacherUtils.dom.isElementVisible(element);
-      this.isInteractive = TaskTeacherUtils.dom.isInteractiveElement(element);
-      this.xpath = TaskTeacherUtils.dom.getXPath(element);
+      this.attributes = getElementAttributes(element);
+      this.isVisible = isElementVisible(element);
+      this.isInteractive = isInteractiveElement(element);
+      this.xpath = getXPath(element);
       this.highlightIndex = null; // Will be set during registration
       this.text = element.textContent.trim().substring(0, 50);
     }
@@ -56,6 +53,103 @@
     }
   }
   
+  // Helper functions
+  function getElementAttributes(element) {
+    const attributes = {};
+    for (const attr of element.attributes) {
+      attributes[attr.name] = attr.value;
+    }
+    return attributes;
+  }
+  
+  function isElementVisible(element) {
+    if (!element) return false;
+    
+    const style = window.getComputedStyle(element);
+    return (
+      element.offsetWidth > 0 &&
+      element.offsetHeight > 0 &&
+      style.visibility !== 'hidden' &&
+      style.display !== 'none' &&
+      style.opacity !== '0'
+    );
+  }
+  
+  function isInteractiveElement(element) {
+    if (!element) return false;
+    
+    // Common interactive elements
+    const interactiveTags = [
+      'a', 'button', 'select', 'textarea', 'input',
+      'video', 'audio', 'summary', 'details'
+    ];
+    
+    // Check tag name
+    if (interactiveTags.includes(element.tagName.toLowerCase())) {
+      return true;
+    }
+    
+    // Check role attribute
+    const interactiveRoles = [
+      'button', 'link', 'checkbox', 'menuitem', 'menuitemcheckbox',
+      'menuitemradio', 'option', 'radio', 'searchbox', 'switch', 'tab'
+    ];
+    
+    const role = element.getAttribute('role');
+    if (role && interactiveRoles.includes(role)) {
+      return true;
+    }
+    
+    // Check for event listeners and other interactive attributes
+    if (
+      element.onclick ||
+      element.addEventListener ||
+      element.getAttribute('onclick') ||
+      element.getAttribute('onmousedown') ||
+      element.getAttribute('ontouchstart') ||
+      element.getAttribute('tabindex') && element.getAttribute('tabindex') !== '-1'
+    ) {
+      return true;
+    }
+    
+    // Check cursor style
+    const style = window.getComputedStyle(element);
+    if (style.cursor === 'pointer') {
+      return true;
+    }
+    
+    return false;
+  }
+  
+  // Get XPath for element (simplified)
+  function getXPath(element) {
+    if (!element) return '';
+    
+    const paths = [];
+    let current = element;
+    
+    while (current && current.nodeType === Node.ELEMENT_NODE) {
+      let index = 0;
+      let sibling = current.previousSibling;
+      
+      while (sibling) {
+        if (sibling.nodeType === Node.ELEMENT_NODE && 
+            sibling.tagName === current.tagName) {
+          index++;
+        }
+        sibling = sibling.previousSibling;
+      }
+      
+      const tagName = current.tagName.toLowerCase();
+      const pathIndex = index > 0 ? `[${index + 1}]` : '';
+      paths.unshift(`${tagName}${pathIndex}`);
+      
+      current = current.parentNode;
+    }
+    
+    return '/' + paths.join('/');
+  }
+  
   // Create CSS selector from element properties
   function createCSSSelector(element) {
     // Start with tag selector
@@ -69,7 +163,7 @@
     // Add classes if they exist
     if (element.className) {
       const classes = element.className.split(/\s+/)
-        .filter(c => c && !c.includes(':'))
+        .filter(c => c && !c.includes(':')) // Filter out problematic classes
         .map(c => `.${c.replace(/:/g, '\\:')}`)
         .join('');
       if (classes) selector += classes;
@@ -107,7 +201,7 @@
   // Register an element with the global registry
   function registerElement(element) {
     // Skip invisible elements
-    if (!TaskTeacherUtils.dom.isElementVisible(element)) return null;
+    if (!isElementVisible(element)) return null;
     
     // Create DOMElement object
     const domElement = new DOMElement(element);
@@ -123,6 +217,10 @@
   
   // Find all interactive elements in the DOM
   function findInteractiveElements() {
+    // Reset registry and indices for fresh scan
+    ELEMENT_REGISTRY.clear();
+    nextElementIndex = 0;
+    
     // Basic selectors for potentially interactive elements
     const selectors = [
       'a', 'button', 'input', 'select', 'textarea', 'details', 'summary',
@@ -137,8 +235,7 @@
     
     // Register interactive elements
     for (const element of potentialElements) {
-      if (TaskTeacherUtils.dom.isElementVisible(element) && 
-          TaskTeacherUtils.dom.isInteractiveElement(element)) {
+      if (isElementVisible(element) && isInteractiveElement(element)) {
         const domElement = registerElement(element);
         if (domElement) {
           interactiveElements.push(domElement);
@@ -151,10 +248,7 @@
   
   // Get DOM data including interactive elements
   window.taskTeacherDOMParser.getDOMData = function() {
-    // Reset registry and indices for fresh scan
-    ELEMENT_REGISTRY.clear();
-    nextElementIndex = 0;
-    
+    // console.log("parsing DOM data")
     const interactiveElements = findInteractiveElements();
     
     return {
@@ -166,6 +260,8 @@
   
   // Get element by highlight index - returns actual DOM element
   window.taskTeacherDOMParser.getElementByIndex = function(index) {
+    console.log(ELEMENT_REGISTRY)
+    console.log(index)
     const domElement = ELEMENT_REGISTRY.get(index);
     return domElement ? domElement.element : null;
   };
