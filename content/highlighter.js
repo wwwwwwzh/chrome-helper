@@ -14,6 +14,9 @@
   // Currently highlighted element index
   let activeHighlightIndex = null;
   
+  // Keep track of cleanup functions
+  let currentCleanupFunction = null;
+  
   // Initialize required styles
   function initializeStyles() {
     if (document.getElementById(HIGHLIGHT_STYLES_ID)) return;
@@ -161,11 +164,11 @@
     label.textContent = index;
     
     // Position label
-    positionLabel(label, rect);
+    // positionLabel(label, rect);
     
     // Add to container
     container.appendChild(overlay);
-    container.appendChild(label);
+    // container.appendChild(label);
     
     // Show instruction if provided
     let instructionEl = null;
@@ -180,7 +183,7 @@
     const updatePositions = () => {
       const newRect = element.getBoundingClientRect();
       positionOverlay(overlay, newRect);
-      positionLabel(label, newRect);
+      // positionLabel(label, newRect);
     };
     
     window.addEventListener('scroll', updatePositions, { passive: true });
@@ -211,7 +214,7 @@
     const labelHeight = 24;
     
     // Default position (top-right corner)
-    let labelTop = rect.top - labelHeight - 5;
+    let labelTop = rect.top + labelHeight - 5;
     let labelLeft = rect.left + rect.width - labelWidth - 5;
     
     // Adjust if element is too close to top
@@ -228,11 +231,32 @@
     label.style.left = `${labelLeft}px`;
   }
   
+  // Clear all highlights - Explicitly defined here
+  function clearHighlights() {
+    const container = document.getElementById(HIGHLIGHT_CONTAINER_ID);
+    if (container) {
+      while (container.firstChild) {
+        container.removeChild(container.firstChild);
+      }
+    }
+    
+    // Clear active highlight index
+    activeHighlightIndex = null;
+    
+    // Clear cleanup function
+    if (currentCleanupFunction) {
+      currentCleanupFunction = null;
+    }
+    
+    return true;
+  }
+  
   // Highlight element by index
   window.taskTeacherHighlighter.highlightElement = function(elementIdentifier, instruction) {
+    console.log("taskTeacherHighlighter.highlightElement:"+elementIdentifier)
     try {
       // Clear existing highlights
-      window.taskTeacherHighlighter.clearHighlights();
+      clearHighlights();
       
       // Initialize styles
       initializeStyles();
@@ -250,6 +274,7 @@
       let element = null;
       if (window.taskTeacherDOMParser) {
         element = window.taskTeacherDOMParser.getElementByIndex(index);
+        console.log(element)
       }
       
       // If element is not found, try refreshing the DOM parser
@@ -272,8 +297,8 @@
         return false;
       }
       
-      // Create highlight
-      createHighlightOverlay(element, index, instruction);
+      // Create highlight and store cleanup function
+      currentCleanupFunction = createHighlightOverlay(element, index, instruction);
       
       // Scroll element into view if not already visible
       const rect = element.getBoundingClientRect();
@@ -303,17 +328,8 @@
     return activeHighlightIndex;
   };
   
-  // Clear all highlights
-  window.taskTeacherHighlighter.clearHighlights = function() {
-    const container = document.getElementById(HIGHLIGHT_CONTAINER_ID);
-    if (container) {
-      while (container.firstChild) {
-        container.removeChild(container.firstChild);
-      }
-    }
-    activeHighlightIndex = null;
-    return true;
-  };
+  // Expose the clear highlights function
+  window.taskTeacherHighlighter.clearHighlights = clearHighlights;
   
   console.log('Improved Highlighter initialized');
 })();

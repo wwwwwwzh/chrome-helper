@@ -1,10 +1,4 @@
 /**
- * UI Controller module for Task Teacher extension
- * This module handles user interactions with the highlighted elements
- * and communicates with the background script
- */
-
-/**
  * Improved UI Controller module for Task Teacher extension
  * Enhanced user interaction tracking and event handling
  */
@@ -58,7 +52,7 @@
       }
       
       if (foundHighlightedElement) {
-        // Report click to background script
+        // Report click via custom event (content script will handle sending to background)
         reportElementClick(activeElementIndex);
         
         // Clear highlights after click
@@ -116,7 +110,7 @@
             window.taskTeacherDOMParser.clearRegistry();
             window.taskTeacherDOMParser.getDOMData();
             
-            // Report state to background script
+            // Report state to background script using custom event
             reportUIState();
           }
         }, 1000);
@@ -207,7 +201,8 @@
     });
   }
   
-  // Report element click to background script
+  // Report element click to background script using a custom event
+  // This will be handled by the content script, which has access to chrome.runtime
   function reportElementClick(elementIndex) {
     // Get additional data about the clicked element
     let elementDetails = {};
@@ -222,28 +217,30 @@
       }
     }
     
-    chrome.runtime.sendMessage({
-      action: 'elementClicked',
-      elementIndex,
-      url: window.location.href,
-      elementDetails
-    }).catch(error => {
-      console.error('Error reporting element click:', error);
+    // Create and dispatch custom event
+    const event = new CustomEvent('taskTeacher:elementClicked', {
+      detail: {
+        elementIndex,
+        url: window.location.href,
+        elementDetails
+      }
     });
+    document.dispatchEvent(event);
   }
   
-  // Report UI state to background script
+  // Report UI state to background script using a custom event
   function reportUIState() {
     if (window.taskTeacherDOMParser) {
       const domData = window.taskTeacherDOMParser.getDOMData();
-      chrome.runtime.sendMessage({
-        action: 'reportUIState',
-        domData,
-        tabId: null, // Background script will handle this
-        timestamp: Date.now()
-      }).catch(error => {
-        console.error('Error reporting UI state:', error);
+      
+      // Create and dispatch custom event
+      const event = new CustomEvent('taskTeacher:reportUIState', {
+        detail: {
+          domData,
+          timestamp: Date.now()
+        }
       });
+      document.dispatchEvent(event);
     }
   }
   
@@ -286,6 +283,7 @@
   
   // Find element by text or other criteria and highlight it
   window.taskTeacherUIController.findAndHighlight = function(criteria, instruction) {
+    console.log("taskTeacherUIController.findAndHighlight")
     if (!window.taskTeacherDOMParser || !window.taskTeacherHighlighter) {
       return false;
     }
@@ -346,4 +344,4 @@
   window.addEventListener('beforeunload', () => {
     window.taskTeacherUIController.cleanup();
   });
-  })();
+})();

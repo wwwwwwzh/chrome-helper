@@ -248,6 +248,7 @@
   
   // Get DOM data including interactive elements
   window.taskTeacherDOMParser.getDOMData = function() {
+    // console.log("parsing DOM data")
     const interactiveElements = findInteractiveElements();
     
     return {
@@ -259,6 +260,8 @@
   
   // Get element by highlight index - returns actual DOM element
   window.taskTeacherDOMParser.getElementByIndex = function(index) {
+    console.log(ELEMENT_REGISTRY)
+    console.log(index)
     const domElement = ELEMENT_REGISTRY.get(index);
     return domElement ? domElement.element : null;
   };

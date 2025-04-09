@@ -27,14 +27,14 @@
     "content_scripts": [
       {
         "matches": ["<all_urls>"],
-        "js": ["content/content.js"],
-        "css": ["assets/styles.css"]
-      }
-    ],
-    "web_accessible_resources": [
-      {
-        "resources": ["content/highlighter.js", "content/dom-parser.js", "content/ui-controller.js"],
-        "matches": ["<all_urls>"]
+        "js": [
+          "content/dom-parser.js",
+          "content/highlighter.js",
+          "content/ui-controller.js",
+          "content/content.js"
+        ],
+        "css": ["assets/styles.css"],
+        "run_at": "document_idle"
       }
     ],
     "icons": {
