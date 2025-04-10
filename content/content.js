@@ -175,23 +175,41 @@ if (!window.taskTeacherInitialized) {
     return false;
   });
 
-  // Initialize periodic DOM state reporting
   function initializeDOMStateReporting() {
-    // Report DOM state periodically
-    const reportInterval = setInterval(() => {
-      if (document.hidden) return; // Don't report if tab is not visible
+    // Use MutationObserver to detect meaningful DOM changes
+    const observer = new MutationObserver((mutations) => {
+      if (document.hidden) return; // Skip if tab not visible
 
-      try {
-        // Trigger DOM update via custom event
-        document.dispatchEvent(new CustomEvent('taskTeacher:refreshDOM'));
-      } catch (error) {
-        console.error('Error reporting DOM state:', error);
+      // Only process if we have significant mutations
+      const significantChange = mutations.some(mutation =>
+        // Added or removed nodes
+        (mutation.type === 'childList' &&
+          (mutation.addedNodes.length > 0 || mutation.removedNodes.length > 0)) ||
+        // Attribute changes on interactive elements
+        (mutation.type === 'attributes' &&
+          ['BUTTON', 'A', 'INPUT'].includes(mutation.target.tagName))
+      );
+
+      if (significantChange) {
+        // Debounce DOM updates to prevent excessive processing
+        clearTimeout(window.taskTeacherDOMUpdateTimer);
+        window.taskTeacherDOMUpdateTimer = setTimeout(() => {
+          document.dispatchEvent(new CustomEvent('taskTeacher:refreshDOM'));
+        }, 300);
       }
-    }, 5000); // Report every 5 seconds
+    });
 
-    // Clean up on unload
+    // Start observing
+    observer.observe(document.body, {
+      childList: true,
+      attributes: true,
+      subtree: true,
+      attributeFilter: ['style', 'class', 'hidden', 'display']
+    });
+
+    // Clean up on window unload
     window.addEventListener('beforeunload', () => {
-      clearInterval(reportInterval);
+      observer.disconnect();
     });
   }
 

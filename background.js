@@ -572,26 +572,31 @@ async function ensureContentScriptsInjected(tabId) {
 }
 
 // Function to be executed in content script to refresh DOM data
-function refreshDOMData(passedTabId) {
+// Replace the refreshDOMData function with a more optimized version
+function refreshDOMData(passedTabId, forceRefresh = false) {
     console.log("Getting DOM data, tabId:", passedTabId);
     let domData;
+    
     if (window.taskTeacherDOMParser) {
+      // Only force a registry clear if explicitly requested
+      if (forceRefresh) {
         window.taskTeacherDOMParser.clearRegistry();
-        domData = window.taskTeacherDOMParser.getDOMData();
+      }
+      domData = window.taskTeacherDOMParser.getDOMData(forceRefresh);
     } else {
-        domData = getFallbackDOMData();
+      domData = getFallbackDOMData();
     }
-
+  
     chrome.runtime.sendMessage({
-        action: 'reportUIState',
-        domData,
-        tabId: passedTabId  // Make sure to pass this back
+      action: 'reportUIState',
+      domData,
+      tabId: passedTabId
     }).catch(err => {
-        console.error('Error reporting DOM state:', err);
+      console.error('Error reporting DOM state:', err);
     });
-
+  
     return domData;
-}
+  }
 
 
 // Fallback function to get DOM data if module isn't loaded
