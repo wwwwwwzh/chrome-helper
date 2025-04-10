@@ -31,6 +31,8 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // Initialize the popup based on extension state
+    // In popup.js, update the initialize function:
+
     const initialize = async () => {
         currentTab = await getCurrentTab();
 
@@ -53,6 +55,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Show current step instruction
                 if (taskState.currentStep) {
                     currentStepDiv.innerHTML = taskState.currentStep;
+                }
+
+                // Update UI text for the next step button to be more informative
+                // since it's now optional due to auto-progression
+                nextStepBtn.textContent = 'Force Next Step';
+
+                // Add note about auto-progression
+                if (!document.getElementById('auto-progress-note')) {
+                    const noteElem = document.createElement('div');
+                    noteElem.id = 'auto-progress-note';
+                    noteElem.style.fontSize = '12px';
+                    noteElem.style.fontStyle = 'italic';
+                    noteElem.style.marginTop = '5px';
+                    noteElem.textContent = 'The extension will automatically proceed to the next step after you click the highlighted element.';
+
+                    // Insert before buttons
+                    const buttonsDiv = document.querySelector('.task-progress .buttons');
+                    buttonsDiv.parentNode.insertBefore(noteElem, buttonsDiv);
                 }
             }
         });

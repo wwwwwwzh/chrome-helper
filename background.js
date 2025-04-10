@@ -67,6 +67,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 .catch(error => sendResponse({ success: false, error: error.message }));
             return true;
 
+        case 'getCurrentTabId':
+            // Get current active tab ID
+            chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+                if (tabs && tabs.length > 0) {
+                    sendResponse({ success: true, tabId: tabs[0].id });
+                } else {
+                    sendResponse({ success: false, error: 'No active tab found' });
+                }
+            });
+            return true;
+
         case 'setApiKey':
             // Handle API key setting from popup
             setApiKey(message.apiKey)
@@ -119,8 +130,72 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     }
 });
 
+// Handle tab updates to detect page navigations
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    // Only process for the active task tab
+    if (!taskState.inProgress || taskState.tabId !== tabId) {
+        return;
+    }
+
+    // When page finished loading
+    if (changeInfo.status === 'complete') {
+        console.log('Page loaded in task tab:', tab.url);
+
+        // Update task status
+        taskState.statusText = 'Page loaded, analyzing...';
+        taskState.expectedNavigation = false;
+        updateTaskStateUI();
+
+        // Wait a moment for any post-load scripts to run, then analyze DOM
+        setTimeout(async () => {
+            try {
+                if (taskState.inProgress && taskState.tabId === tabId) {
+                    // Important: Update stored tabId to match current tab
+                    // This ensures continuity across navigations
+                    taskState.tabId = tabId;
+
+                    // Re-save state to ensure it's current
+                    await chrome.storage.local.set({ taskState });
+
+                    // Inject content scripts if not already present
+                    await ensureContentScriptsInjected(tabId);
+
+                    // Request DOM data from content script
+                    await executeContentScript(tabId, {
+                        function: refreshDOMData,
+                        args: [tabId]
+                    });
+
+                    // Update UI with current step
+                    updateTaskStateUI();
+                }
+            } catch (error) {
+                console.error('Error processing page load:', error);
+            }
+        }, 1000);
+    }
+});
+
+// Add to background.js
+chrome.webNavigation.onCommitted.addListener((details) => {
+    // Only care about main frame navigation
+    if (details.frameId !== 0) return;
+    
+    // Check if this is the task tab
+    if (taskState.inProgress && taskState.tabId === details.tabId) {
+        console.log('Navigation detected in task tab:', details.url);
+        
+        // Set navigation flag to avoid premature next step calls
+        taskState.expectedNavigation = true;
+        taskState.statusText = 'Navigation in progress...';
+        updateTaskStateUI();
+        
+        // No need to clear anything here, we'll handle it in onCompleted
+    }
+});
+
 // Handle element click from the content script
-async function handleElementClick(elementIndex, elementDetails, tabId, url) {
+async function handleElementClick(elementIndex, elementDetails, tabId, url, expectingNavigation) {
     try {
         // Verify this is for the current task
         if (!taskState.inProgress || taskState.tabId !== tabId) {
@@ -139,46 +214,22 @@ async function handleElementClick(elementIndex, elementDetails, tabId, url) {
             };
         }
 
-        // Set navigation expectation flag
-        if (elementDetails.tagName === 'a' ||
-            elementDetails.tagName === 'button' ||
-            elementDetails.text.toLowerCase().includes('submit') ||
-            elementDetails.text.toLowerCase().includes('search')) {
-            taskState.expectedNavigation = true;
-        }
+        // Set navigation expectation flag based on what the content script reported
+        taskState.expectedNavigation = expectingNavigation;
 
         // Save task state
         await chrome.storage.local.set({ taskState });
 
-        // Wait for possible navigation
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // The next step request will be handled by the content script's auto-progression
+        // We don't need to manually trigger it here anymore
 
-        // Check if we're still on the same page
-        let currentUrl = url;
-        try {
-            const tab = await chrome.tabs.get(tabId);
-            currentUrl = tab.url;
-        } catch (e) {
-            console.error('Error getting tab URL:', e);
-        }
-
-        // If we're still on the same page and not expecting navigation, get next step
-        if (currentUrl === url && !taskState.expectedNavigation) {
-            // Delay to let any dynamic page changes occur
-            setTimeout(async () => {
-                if (taskState.inProgress && taskState.tabId === tabId) {
-                    try {
-                        await handleGetNextStep(tabId);
-                    } catch (error) {
-                        console.error('Error getting next step after click:', error);
-                    }
-                }
-            }, 1500);
-        } else if (taskState.expectedNavigation) {
-            // We're expecting navigation, wait for page load events to handle it
+        // Update UI status
+        if (taskState.expectedNavigation) {
             taskState.statusText = 'Navigation in progress...';
-            updateTaskStateUI();
+        } else {
+            taskState.statusText = 'Action completed, proceeding to next step...';
         }
+        updateTaskStateUI();
 
         return { success: true };
     } catch (error) {
@@ -246,8 +297,25 @@ async function handleStartTask(taskPrompt, tabId) {
 // Get next step from AI
 async function handleGetNextStep(tabId) {
     try {
+        // First verify tab exists and matches our expectations
+        const tab = await chrome.tabs.get(tabId);
+        if (!tab) {
+            throw new Error('Tab does not exist');
+        }
+        
+        console.log(`Processing next step for tab ${tabId} (${tab.url})`);
+        
+        // If task state doesn't match this tabId, check if we need to update it
         if (!taskState.inProgress || taskState.tabId !== tabId) {
-            throw new Error('No active task for this tab');
+            // Check if there's a saved task for this tab
+            const savedState = await chrome.storage.local.get('taskState');
+            if (savedState.taskState && savedState.taskState.tabId === tabId) {
+                // Restore from saved state
+                Object.assign(taskState, savedState.taskState);
+                console.log('Restored task state for tab:', tabId);
+            } else {
+                throw new Error('No active task for this tab');
+            }
         }
 
         taskState.statusText = 'Analyzing current page...';
@@ -543,20 +611,19 @@ async function ensureContentScriptsInjected(tabId) {
 
 // Function to be executed in content script to refresh DOM data
 function refreshDOMData(passedTabId) {
-    console.log("Next step, getting DOM data");
+    console.log("Getting DOM data, tabId:", passedTabId);
     let domData;
     if (window.taskTeacherDOMParser) {
         window.taskTeacherDOMParser.clearRegistry();
         domData = window.taskTeacherDOMParser.getDOMData();
-        // console.log("Parsed page: ", domData);
     } else {
         domData = getFallbackDOMData();
     }
-    
+
     chrome.runtime.sendMessage({
         action: 'reportUIState',
         domData,
-        tabId: passedTabId
+        tabId: passedTabId  // Make sure to pass this back
     }).catch(err => {
         console.error('Error reporting DOM state:', err);
     });
