@@ -1,6 +1,6 @@
 /**
- * Enhanced DOM Parser for Task Teacher extension
- * This improves element indexing and mapping to ensure reliable highlighting
+ * Optimized DOM Parser for Task Teacher extension
+ * With efficient element indexing and caching
  */
 
 (function() {
@@ -10,21 +10,27 @@
   // Create namespace
   window.taskTeacherDOMParser = {};
   
-  // Global element registry - stores references to actual DOM elements
+  // Global element registry with a Map for fast lookups
   const ELEMENT_REGISTRY = new Map();
   let nextElementIndex = 0;
+
+  // DOM element cache for expensive operations
+  const DOM_CACHE = {
+    boundingRects: new WeakMap(),
+    computedStyles: new WeakMap()
+  };
   
-  // DOMElement class that holds both metadata and reference to the actual element
+  // DOMElement class that holds metadata and reference to the actual element
   class DOMElement {
     constructor(element) {
       this.element = element; // Store reference to actual DOM element
       this.tagName = element.tagName.toLowerCase();
-      this.attributes = TaskTeacherUtils.dom.getElementAttributes(element);
-      this.isVisible = TaskTeacherUtils.dom.isElementVisible(element);
-      this.isInteractive = TaskTeacherUtils.dom.isInteractiveElement(element);
-      this.xpath = TaskTeacherUtils.dom.getXPath(element);
+      this.attributes = getElementAttributes(element);
+      this.isVisible = isElementVisible(element);
+      this.isInteractive = isElementInteractive(element);
+      this.xpath = getXPath(element);
       this.highlightIndex = null; // Will be set during registration
-      this.text = element.textContent.trim().substring(0, 50);
+      this.text = getElementText(element);
     }
     
     toString() {
@@ -46,7 +52,7 @@
       
       // Add text content
       if (this.text) {
-        result += `>${this.text}${this.text.length > 50 ? '...' : ''}`;
+        result += `>${this.text}`;
       } else {
         result += '>';
       }
@@ -55,59 +61,160 @@
       return result;
     }
   }
+
+  // Get element text with sensible maximum length
+  function getElementText(element) {
+    const MAX_TEXT_LENGTH = 50;
+    let text = element.textContent?.trim() || '';
+    if (text.length > MAX_TEXT_LENGTH) {
+      text = text.substring(0, MAX_TEXT_LENGTH) + '...';
+    }
+    return text;
+  }
   
-  // Create CSS selector from element properties
-  function createCSSSelector(element) {
-    // Start with tag selector
-    let selector = element.tagName.toLowerCase();
-    
-    // Add ID if it exists (most specific)
-    if (element.id) {
-      return `${selector}#${element.id.replace(/:/g, '\\:')}`;
+  // Get bounding rect with caching
+  function getCachedBoundingRect(element) {
+    if (DOM_CACHE.boundingRects.has(element)) {
+      return DOM_CACHE.boundingRects.get(element);
     }
     
-    // Add classes if they exist
-    if (element.className) {
-      const classes = element.className.split(/\s+/)
-        .filter(c => c && !c.includes(':'))
-        .map(c => `.${c.replace(/:/g, '\\:')}`)
-        .join('');
-      if (classes) selector += classes;
+    const rect = element.getBoundingClientRect();
+    DOM_CACHE.boundingRects.set(element, rect);
+    return rect;
+  }
+  
+  // Get computed style with caching
+  function getCachedComputedStyle(element) {
+    if (DOM_CACHE.computedStyles.has(element)) {
+      return DOM_CACHE.computedStyles.get(element);
     }
     
-    // Add attributes for further specificity
-    const attrSelectors = [];
-    for (const attr of ['role', 'type', 'name', 'aria-label']) {
-      const value = element.getAttribute(attr);
-      if (value) {
-        // Handle values with spaces or special characters
-        if (/[\s'"]/.test(value)) {
-          attrSelectors.push(`[${attr}*="${value.replace(/"/g, '\\"').substring(0, 20)}"]`);
-        } else {
-          attrSelectors.push(`[${attr}="${value}"]`);
+    const style = window.getComputedStyle(element);
+    DOM_CACHE.computedStyles.set(element, style);
+    return style;
+  }
+  
+  // Get element attributes efficiently
+  function getElementAttributes(element) {
+    const attributes = {};
+    const attributeNames = element.getAttributeNames ? element.getAttributeNames() : [];
+    
+    // For performance, only collect important attributes
+    const importantAttrs = new Set([
+      'id', 'class', 'type', 'role', 'name', 'aria-label', 'placeholder', 
+      'href', 'src', 'alt', 'title', 'value', 'checked', 'selected', 'tabindex'
+    ]);
+    
+    for (const name of attributeNames) {
+      if (importantAttrs.has(name)) {
+        attributes[name] = element.getAttribute(name);
+      }
+    }
+    
+    return attributes;
+  }
+  
+  // Get XPath efficiently
+  function getXPath(element) {
+    if (!element) return '';
+    
+    const segments = [];
+    let currentElement = element;
+    
+    // Limit XPath generation to a reasonable depth to prevent performance issues
+    const MAX_DEPTH = 10;
+    let depth = 0;
+    
+    while (currentElement && currentElement.nodeType === Node.ELEMENT_NODE && depth < MAX_DEPTH) {
+      let index = 0;
+      let sibling = currentElement.previousSibling;
+      
+      // Count only element siblings with same tag
+      while (sibling) {
+        if (sibling.nodeType === Node.ELEMENT_NODE && 
+            sibling.tagName === currentElement.tagName) {
+          index++;
         }
+        sibling = sibling.previousSibling;
       }
+      
+      const tagName = currentElement.tagName.toLowerCase();
+      const pathIndex = index > 0 ? `[${index + 1}]` : '';
+      segments.unshift(`${tagName}${pathIndex}`);
+      
+      currentElement = currentElement.parentNode;
+      depth++;
     }
     
-    // Add position to parent for uniqueness
-    const parent = element.parentElement;
-    if (parent && parent !== document.body) {
-      const siblings = Array.from(parent.children).filter(
-        child => child.tagName === element.tagName
-      );
-      if (siblings.length > 1) {
-        const index = siblings.indexOf(element) + 1;
-        selector += `:nth-child(${index})`;
-      }
+    return '/' + segments.join('/');
+  }
+  
+  // Check if element is visible - optimized with early returns
+  function isElementVisible(element) {
+    // Quick check before expensive operations
+    if (!element || 
+        element.offsetWidth === 0 || 
+        element.offsetHeight === 0 || 
+        element.style.display === 'none' || 
+        element.style.visibility === 'hidden') {
+      return false;
     }
     
-    return selector + attrSelectors.join('');
+    // Use cached computed style
+    const style = getCachedComputedStyle(element);
+    return style.display !== 'none' && 
+           style.visibility !== 'hidden' && 
+           style.opacity !== '0';
+  }
+  
+  // Check if element is interactive - optimized with set lookups
+  function isElementInteractive(element) {
+    if (!element) return false;
+    
+    // Common interactive elements
+    const interactiveTags = new Set([
+      'a', 'button', 'select', 'textarea', 'input',
+      'summary', 'details', 'video', 'audio'
+    ]);
+    
+    // Check tag name
+    if (interactiveTags.has(element.tagName.toLowerCase())) {
+      return true;
+    }
+    
+    // Check common interactive roles
+    const interactiveRoles = new Set([
+      'button', 'link', 'checkbox', 'radio', 'tab', 'menuitem', 
+      'option', 'switch', 'menu', 'slider', 'listbox'
+    ]);
+    
+    const role = element.getAttribute('role');
+    if (role && interactiveRoles.has(role)) {
+      return true;
+    }
+    
+    // Check for event listeners and other interactive attributes
+    if (element.onclick || 
+        element.getAttribute('onclick') || 
+        element.getAttribute('ng-click') || 
+        element.getAttribute('@click') || 
+        element.getAttribute('tabindex') && element.getAttribute('tabindex') !== '-1') {
+      return true;
+    }
+    
+    // Check cursor style for potential interactive elements
+    const style = getCachedComputedStyle(element);
+    if (style.cursor === 'pointer') {
+      return true;
+    }
+    
+    return false;
   }
   
   // Register an element with the global registry
   function registerElement(element) {
     // Skip invisible elements
-    if (!TaskTeacherUtils.dom.isElementVisible(element)) return null;
+    if (!isElementVisible(element)) return null;
     
     // Create DOMElement object
     const domElement = new DOMElement(element);
@@ -121,24 +228,34 @@
     return domElement;
   }
   
-  // Find all interactive elements in the DOM
+  // Find interactive elements using an efficient selector strategy
   function findInteractiveElements() {
-    // Basic selectors for potentially interactive elements
+    // Use a more specific selector to reduce the initial set size
     const selectors = [
-      'a', 'button', 'input', 'select', 'textarea', 'details', 'summary',
-      '[role="button"]', '[role="link"]', '[role="checkbox"]', 
-      '[role="tab"]', '[role="menuitem"]', '[role="option"]',
-      '[onclick]', '[tabindex]:not([tabindex="-1"])',
-      '[class*="btn"]', '[class*="button"]'
+      'a[href]',                       // Links with hrefs (skip empty links)
+      'button:not([disabled])',        // Enabled buttons
+      'input:not([type="hidden"])',    // Visible inputs
+      'select:not([disabled])',        // Enabled select boxes
+      '[role="button"]',               // ARIA buttons
+      '[role="link"]',                 // ARIA links
+      '[onclick]',                     // Elements with click handlers
+      '[tabindex]:not([tabindex="-1"])', // Focusable elements
+      '.btn, .button'                  // Common button classes
     ];
     
+    // Combine selectors for a single query (more efficient)
     const potentialElements = document.querySelectorAll(selectors.join(','));
     const interactiveElements = [];
     
-    // Register interactive elements
-    for (const element of potentialElements) {
-      if (TaskTeacherUtils.dom.isElementVisible(element) && 
-          TaskTeacherUtils.dom.isInteractiveElement(element)) {
+    // Register interactive elements (using a faster for-loop instead of forEach)
+    for (let i = 0; i < potentialElements.length; i++) {
+      const element = potentialElements[i];
+      
+      // Skip invisible elements early for performance
+      if (!isElementVisible(element)) continue;
+      
+      // Register element if truly interactive
+      if (isElementInteractive(element)) {
         const domElement = registerElement(element);
         if (domElement) {
           interactiveElements.push(domElement);
@@ -149,12 +266,17 @@
     return interactiveElements;
   }
   
-  // Get DOM data including interactive elements
+  // Get DOM data with interactive elements
   window.taskTeacherDOMParser.getDOMData = function() {
-    // Reset registry and indices for fresh scan
+    // Clear caches for fresh scan
+    DOM_CACHE.boundingRects = new WeakMap();
+    DOM_CACHE.computedStyles = new WeakMap();
+    
+    // Reset registry and indices
     ELEMENT_REGISTRY.clear();
     nextElementIndex = 0;
     
+    // Find interactive elements
     const interactiveElements = findInteractiveElements();
     
     return {
@@ -179,8 +301,12 @@
   window.taskTeacherDOMParser.findElement = function(criteria) {
     // Find by text content
     if (criteria.text) {
-      for (const [_, domElement] of ELEMENT_REGISTRY.entries()) {
-        if (domElement.text.includes(criteria.text)) {
+      // Convert to lowercase for case-insensitive matching
+      const targetText = criteria.text.toLowerCase();
+      
+      // Use entries for faster iteration with early return
+      for (const [index, domElement] of ELEMENT_REGISTRY.entries()) {
+        if (domElement.text.toLowerCase().includes(targetText)) {
           return domElement.element;
         }
       }
@@ -199,8 +325,11 @@
     if (criteria.xpath) {
       try {
         const result = document.evaluate(
-          criteria.xpath, document, null, 
-          XPathResult.FIRST_ORDERED_NODE_TYPE, null
+          criteria.xpath, 
+          document, 
+          null, 
+          XPathResult.FIRST_ORDERED_NODE_TYPE, 
+          null
         );
         return result.singleNodeValue;
       } catch (e) {
@@ -211,11 +340,13 @@
     return null;
   };
   
-  // Clear registry (useful when page changes significantly)
+  // Clear registry and caches
   window.taskTeacherDOMParser.clearRegistry = function() {
     ELEMENT_REGISTRY.clear();
     nextElementIndex = 0;
+    DOM_CACHE.boundingRects = new WeakMap();
+    DOM_CACHE.computedStyles = new WeakMap();
   };
   
-  console.log('DOM Parser initialized with enhanced element registry');
+  console.log('DOM Parser initialized with optimized element detection and caching');
 })();

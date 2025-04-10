@@ -91,44 +91,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
 });
 
-// Handle tab updates to detect page navigations
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-    // Only process for the active task tab
-    if (!taskState.inProgress || taskState.tabId !== tabId) {
-        return;
-    }
-
-    // When page finished loading
-    if (changeInfo.status === 'complete') {
-        console.log('Page loaded in task tab:', tab.url);
-
-        // Update task status
-        taskState.statusText = 'Page loaded, analyzing...';
-        taskState.expectedNavigation = false;
-        updateTaskStateUI();
-
-        // Wait a moment for any post-load scripts to run, then analyze DOM
-        setTimeout(async () => {
-            try {
-                if (taskState.inProgress && taskState.tabId === tabId) {
-                    // Inject content scripts if not already present
-                    await ensureContentScriptsInjected(tabId);
-
-                    // Request DOM data from content script
-                    await executeContentScript(tabId, {
-                        function: refreshDOMData,
-                        args: [tabId]
-                    });
-
-                    // Update UI with current step
-                    updateTaskStateUI();
-                }
-            } catch (error) {
-                console.error('Error processing page load:', error);
-            }
-        }, 1000);
-    }
-});
 
 // Handle tab updates to detect page navigations
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
